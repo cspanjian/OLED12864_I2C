@@ -141,7 +141,6 @@ namespace OLED12864_I2C {
     let _buf2 = pins.createBuffer(2);
     let _buf3 = pins.createBuffer(3);
     let _buf4 = pins.createBuffer(4);
-    let _ZOOM = 1;
 
     function cmd1(d: number) {
         let n = d % 256;
@@ -165,7 +164,7 @@ namespace OLED12864_I2C {
 
     function set_pos(col: number = 0, page: number = 0) {
         cmd1(0xb0 | page) // page number
-        let c = col * (_ZOOM + 1)
+        let c = col * 2
         cmd1(0x00 | (c % 16)) // lower start column address
         cmd1(0x10 | (c >> 4)) // upper start column address    
     }
@@ -176,47 +175,14 @@ namespace OLED12864_I2C {
             d -= (1 << b)
         return d
     }
-
-    /**
-     * set pixel in OLED
-     * @param x is X alis, eg: 0
-     * @param y is Y alis, eg: 0
-     * @param color is dot color, eg: 1
-     */
-    //% blockId="OLED12864_I2C_PIXEL" block="set pixel at x %x|y %y|color %color"
-    //% weight=70 blockGap=8
-    //% parts=OLED12864_I2C trackArgs=0
-    export function pixel(x: number, y: number, color: number = 1) {
-        let page = y >> 3
-        let shift_page = y % 8
-        let ind = x * (_ZOOM + 1) + page * 128 + 1
-        let b = (color) ? (_screen[ind] | (1 << shift_page)) : clrbit(_screen[ind], shift_page)
-        _screen[ind] = b
-        set_pos(x, page)
-        if (_ZOOM) {
-            _screen[ind + 1] = b
-            _buf3[0] = 0x40
-            _buf3[1] = _buf3[2] = b
-            pins.i2cWriteBuffer(_I2CAddr, _buf3)
-        }
-        else {
-            _buf2[0] = 0x40
-            _buf2[1] = b
-            pins.i2cWriteBuffer(_I2CAddr, _buf2)
-        }
-    }
-
     /**
      * show text in OLED
-     * @param x is X alis, eg: 0
-     * @param y is Y alis, eg: 0
      * @param s is the text will be show, eg: 'Hello!'
-     * @param color is string color, eg: 1
      */
-    //% blockId="OLED12864_I2C_SHOWSTRING" block="show string at x %x|y %y|text %s|color %color"
+    //% blockId="OLED12864_I2C_SHOWSTRING" block="显示字符串 %s"
     //% weight=80 blockGap=8
-    //% parts=OLED12864_I2C trackArgs=0
-    export function showString(x: number, y: number, s: string, color: number = 1) {
+    export function showString(s: string) {
+        clear()
         let col = 0
         let p = 0
         let ind = 0
@@ -228,16 +194,13 @@ namespace OLED12864_I2C {
                     if (p & (1 << (5 * i + j)))
                         col |= (1 << (j + 1))
                 }
-                ind = (x + n) * 5 * (_ZOOM + 1) + y * 128 + i * (_ZOOM + 1) + 1
-                if (color == 0)
-                    col = 255 - col
+                ind = n * 5 * 2 +  i * 2 + 1
                 _screen[ind] = col
-                if (_ZOOM)
-                    _screen[ind + 1] = col
+                _screen[ind + 1] = col
             }
         }
-        set_pos(x * 5, y)
-        let ind0 = x * 5 * (_ZOOM + 1) + y * 128
+        set_pos(0, 0)
+        let ind0 = 0
         let buf = _screen.slice(ind0, ind + 1)
         buf[0] = 0x40
         pins.i2cWriteBuffer(_I2CAddr, buf)
@@ -245,89 +208,19 @@ namespace OLED12864_I2C {
 
     /**
      * show a number in OLED
-     * @param x is X alis, eg: 0
-     * @param y is Y alis, eg: 0
      * @param num is the number will be show, eg: 12
-     * @param color is number color, eg: 1
      */
-    //% blockId="OLED12864_I2C_NUMBER" block="show a Number at x %x|y %y|number %num|color %color"
+    //% blockId="OLED12864_I2C_NUMBER" block="显示数字 %num"
     //% weight=80 blockGap=8
-    //% parts=OLED12864_I2C trackArgs=0
-    export function showNumber(x: number, y: number, num: number, color: number = 1) {
-        showString(x, y, num.toString(), color)
-    }
-
-    /**
-     * draw a horizontal line
-     * @param x is X alis, eg: 0
-     * @param y is Y alis, eg: 0
-     * @param len is the length of line, eg: 10
-     * @param color is line color, eg: 1
-     */
-    //% blockId="OLED12864_I2C_HLINE" block="draw a horizontal line at x %x|y %y|number %len|color %color"
-    //% weight=71 blockGap=8
-    //% parts=OLED12864_I2C trackArgs=0
-    export function hline(x: number, y: number, len: number, color: number = 1) {
-        for (let i = x; i < (x + len); i++)
-            pixel(i, y, color)
-    }
-
-    /**
-     * draw a vertical line
-     * @param x is X alis, eg: 0
-     * @param y is Y alis, eg: 0
-     * @param len is the length of line, eg: 10
-     * @param color is line color, eg: 1
-     */
-    //% blockId="OLED12864_I2C_VLINE" block="draw a vertical line at x %x|y %y|number %len|color %color"
-    //% weight=72 blockGap=8
-    //% parts=OLED12864_I2C trackArgs=0
-    export function vline(x: number, y: number, len: number, color: number = 1) {
-        for (let i = y; i < (y + len); i++)
-            pixel(x, i, color)
-    }
-
-    /**
-     * draw a rectangle
-     * @param x1 is X alis, eg: 0
-     * @param y1 is Y alis, eg: 0
-     * @param x2 is X alis, eg: 60
-     * @param y2 is Y alis, eg: 30
-     * @param color is line color, eg: 1
-     */
-    //% blockId="OLED12864_I2C_RECT" block="draw a rectangle at x1 %x1|y1 %y1|x2 %x2|y2 %y2|color %color"
-    //% weight=73 blockGap=8
-    //% parts=OLED12864_I2C trackArgs=0
-    export function rect(x1: number, y1: number, x2: number, y2: number, color: number = 1) {
-        if (x1 > x2)
-            x1 = [x2, x2 = x1][0];
-        if (y1 > y2)
-            y1 = [y2, y2 = y1][0];
-        hline(x1, y1, x2 - x1 + 1, color)
-        hline(x1, y2, x2 - x1 + 1, color)
-        vline(x1, y1, y2 - y1 + 1, color)
-        vline(x2, y1, y2 - y1 + 1, color)
-    }
-
-    /**
-     * invert display
-     * @param d true: invert / false: normal, eg: true
-     */
-    //% blockId="OLED12864_I2C_INVERT" block="invert display %d"
-    //% weight=65 blockGap=8
-    //% parts=OLED12864_I2C trackArgs=0
-    export function invert(d: boolean = true) {
-        let n = (d) ? 0xA7 : 0xA6
-        cmd1(n)
+    export function showNumber(num: number) {
+        clear()
+        showString(num.toString())
     }
 
     /**
      * draw / redraw screen
      */
-    //% blockId="OLED12864_I2C_DRAW" block="draw"
-    //% weight=64 blockGap=8
-    //% parts=OLED12864_I2C trackArgs=0
-    export function draw() {
+    function draw() {
         set_pos()
         pins.i2cWriteBuffer(_I2CAddr, _screen)
     }
@@ -335,54 +228,18 @@ namespace OLED12864_I2C {
     /**
      * clear screen
      */
-    //% blockId="OLED12864_I2C_CLEAR" block="clear"
-    //% weight=63 blockGap=8
-    //% parts=OLED12864_I2C trackArgs=0
-    export function clear() {
+    function clear() {
         _screen.fill(0)
         _screen[0] = 0x40
         draw()
     }
 
     /**
-     * turn on screen
-     */
-    //% blockId="OLED12864_I2C_ON" block="turn on"
-    //% weight=62 blockGap=8
-    //% parts=OLED12864_I2C trackArgs=0
-    export function on() {
-        cmd1(0xAF)
-    }
-
-    /**
-     * turn off screen
-     */
-    //% blockId="OLED12864_I2C_OFF" block="turn off"
-    //% weight=61 blockGap=8
-    //% parts=OLED12864_I2C trackArgs=0
-    export function off() {
-        cmd1(0xAE)
-    }
-
-    /**
-     * zoom mode
-     * @param d true zoom / false normal, eg: true
-     */
-    //% blockId="OLED12864_I2C_ZOOM" block="zoom %d"
-    //% weight=60 blockGap=8
-    //% parts=OLED12864_I2C trackArgs=0
-    export function zoom(d: boolean = true) {
-        _ZOOM = (d) ? 1 : 0
-        cmd2(0xd6, _ZOOM)
-    }
-
-    /**
      * OLED initialize
      * @param addr is i2c addr, eg: 60
      */
-    //% blockId="OLED12864_I2C_init" block="init OLED with addr %addr"
+    //% blockId="OLED12864_I2C_init" block="初始化OLED显示屏，IIC地址是 %addr"
     //% weight=100 blockGap=8
-    //% parts=OLED12864_I2C trackArgs=0
     export function init(addr: number) {
         _I2CAddr = addr;
         cmd1(0xAE)       // SSD1306_DISPLAYOFF
@@ -405,6 +262,5 @@ namespace OLED12864_I2C {
         cmd2(0xD6, 1)    // zoom on
         cmd1(0xAF)       // SSD1306_DISPLAYON
         clear()
-        _ZOOM = 1
     }
 }
